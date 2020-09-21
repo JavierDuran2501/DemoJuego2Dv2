@@ -19,12 +19,13 @@ public class Mario extends Objeto {
         sprite.setPosition(x, y);
 
         //Animación
-        TextureRegion[] arrFrames = { texturasFrame[0][1], texturasFrame[0][2], texturasFrame[0][3] };
+        TextureRegion[] arrFrames = { texturasFrame[0][3], texturasFrame[0][2], texturasFrame[0][1] };
         animacion = new Animation<TextureRegion>(0.1f, arrFrames);
+        animacion.setPlayMode(Animation.PlayMode.LOOP);
         timerAnimacion = 0;
     }
 
-    @Override
+
     public void render(SpriteBatch batch) {
         float delta = Gdx.graphics.getDeltaTime(); // 1/60
         timerAnimacion += delta;
