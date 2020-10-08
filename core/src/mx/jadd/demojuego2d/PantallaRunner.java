@@ -3,57 +3,69 @@ package mx.jadd.demojuego2d;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.Preferences;
-import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Touchpad;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
-public class PantallaRunner extends Pantalla {
+public class PantallaRunner extends Pantalla
+{
     private Juego juego;
 
-    //Personaje / Mario
+    // Personaje / mario
     private Mario mario;
     private Texture texturaMario;
 
-    //Bolas de fuego
+    // Bolas de fuego
     private Texture texturaBolaFuego;
     private Array<BolaFuego> arrBolasFuego;
 
-    //Enemigo
+    // Enemigo
     private Goomba goomba;
     private Texture texturaGoomba;
 
-    //Fondo
+    // Fondo
     private Texture texturaFondo;
     private float xFondo = 0;
 
-    //Enemigos
+    // Enemigos
     private Array<Goomba> arrEnemigos;
     private float timerCrearEnemigo;
-    private float TIEMP_CREA_ENEMIGO = 1; //Variable; El primer enemigo aparecerá tras 1 seg
+    private float TIEMPO_CREA_ENEMIGO = 1;    // VARIABLE
     private float tiempoBase = 1;
 
-    //Texto
-    private Texto texto; //Dibuja textos en la pantalla
+    // Texto
+    private Texto texto;        // Dibuja textos en la pantalla
     private float puntos;
+
+    // HUD
+    private Stage escenaHUD;        // pad, botón disparo, marcador, etc
+    private OrthographicCamera camaraHUD;
+    private Viewport vistaHUD;
+
+    // Música / Efectos de sonido
+    private Music musicaFondo;      // Audios largos
+    private Sound efectoSalto;      // Efectos cortos (WAV, MP3)
 
     public PantallaRunner(Juego juego) {
         this.juego = juego;
     }
-
-    //HUD
-    private Stage escenaHUD; //Tendremos el pad, boton disparo, marcador, etc.
-    private OrthographicCamera camaraHUD;
-    private Viewport vistaHUD;
 
     @Override
     public void show() {
@@ -65,18 +77,37 @@ public class PantallaRunner extends Pantalla {
         crearTexto();
         cargarPuntos();
         crearHUD();
+        crearAudio();
 
         //Gdx.input.setInputProcessor(new ProcesadorEntrada());
         Gdx.input.setInputProcessor(escenaHUD);
     }
 
-    private void crearHUD() {
-        camaraHUD = new OrthographicCamera(ANCHO,ALTO);
-        camaraHUD.position.set(ANCHO/2,ALTO/2,0);
-        camaraHUD.update();
-        vistaHUD = new StretchViewport(ANCHO,ALTO,camaraHUD);
+    private void crearAudio() {
+        // PPP
+        // cargar preferencias
+        // preguntar si la preferencia de sonido es true
+        AssetManager manager = new AssetManager();
+        manager.load("runner/marioBros.mp3", Music.class);  // programa la carga
+        manager.load("runner/moneda.mp3", Sound.class);
+        manager.finishLoading();    // ESPERA
+        musicaFondo = manager.get("runner/marioBros.mp3");
+        musicaFondo.setVolume(0.1f);
+        musicaFondo.setLooping(true);
+        musicaFondo.play();
 
-        //Crear escena
+        efectoSalto = manager.get("runner/moneda.mp3");
+
+        // No la pref es false
+    }
+
+    private void crearHUD() {
+        camaraHUD = new OrthographicCamera(ANCHO, ALTO);
+        camaraHUD.position.set(ANCHO/2, ALTO/2, 0);
+        camaraHUD.update();
+        vistaHUD = new StretchViewport(ANCHO, ALTO, camaraHUD);
+
+        // Escena
         escenaHUD = new Stage(vistaHUD);
         // Crea el pad
         Skin skin = new Skin(); // Texturas para el pad
@@ -95,29 +126,50 @@ public class PantallaRunner extends Pantalla {
             public void changed(ChangeEvent event, Actor actor) {
                 Touchpad pad = (Touchpad)actor;
                 if (pad.getKnobPercentX() > 0.20) { // Más de 20% de desplazamiento DERECHA
-                    //mario.setEstadoMover(Personaje.EstadoMovimento.DERECHA);
-                    mario.sprite.setX(mario.sprite.getX()+10);
+                    mario.setEstadoCaminando(EstadoCaminando.DERECHA);
                 } else if ( pad.getKnobPercentX() < -0.20 ) {   // Más de 20% IZQUIERDA
-                    //mario.setEstadoMover(Personaje.EstadoMovimento.IZQUIERDA);
-                    mario.sprite.setX(mario.sprite.getX()-10);
-                } else {
-                    //mario.setEstadoMover(Personaje.EstadoMovimento.QUIETO);
+                    mario.setEstadoCaminando(EstadoCaminando.IZQUIERDA);
+                } else if (pad.getKnobPercentX()==0) {
+                    mario.setEstadoCaminando(EstadoCaminando.QUIETO);
                 }
-                //Y
-                if (pad.getKnobPercentY()>0.5){
-                    mario.saltar();
+                // Y
+                if (pad.getKnobPercentY()>0.5) {
+                    if (mario.getEstado()!=EstadoMario.SALTANDO) {
+                        mario.saltar();
+                        efectoSalto.play();
+                    }
                 }
             }
         });
         pad.setColor(1,1,1,0.7f);   // Transparente
         // Crea la escena y agrega el pad
-
         escenaHUD.addActor(pad);
+
+        // Botón de disparo
+        Texture texturaDisparo = new Texture("space/shoot.png");
+        TextureRegionDrawable region = new TextureRegionDrawable(new TextureRegion(
+                texturaDisparo));
+
+        ImageButton btnDisparo = new ImageButton(region);
+        btnDisparo.setPosition(ANCHO*0.9f, 60);
+        // Programar listener del botón
+        btnDisparo.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                super.clicked(event, x, y);
+                if (arrBolasFuego.size < 20) {
+                    BolaFuego bolaFuego = new BolaFuego(texturaBolaFuego, mario.sprite.getX(),
+                            mario.sprite.getY() + mario.sprite.getHeight()*0.5F);
+                    arrBolasFuego.add(bolaFuego);
+                }
+            }
+        });
+        escenaHUD.addActor(btnDisparo);
     }
 
     private void cargarPuntos() {
-        Preferences prefs = Gdx.app.getPreferences("marcadores");
-        puntos = prefs.getFloat("PUNTOS",0);
+        Preferences prefs = Gdx.app.getPreferences("marcador");
+        puntos = prefs.getFloat("PUNTOS", 0);
     }
 
     private void crearTexto() {
@@ -132,12 +184,11 @@ public class PantallaRunner extends Pantalla {
     private void crearEnemigos() {
         texturaGoomba = new Texture("runner/goomba.png");
         arrEnemigos = new Array<>();
-
     }
 
     private void crearGoomba() {
         texturaGoomba = new Texture("runner/goomba.png");
-        goomba = new Goomba(texturaGoomba,ANCHO*0.75f,60);
+        goomba = new Goomba(texturaGoomba, ANCHO*0.75f, 60);
     }
 
     private void crearFondo() {
@@ -146,19 +197,19 @@ public class PantallaRunner extends Pantalla {
 
     private void crearMario() {
         texturaMario = new Texture("runner/marioSprite.png");
-        mario = new Mario(texturaMario,ANCHO/2,59);
+        mario = new Mario(texturaMario, ANCHO/2, 60);
     }
 
     @Override
     public void render(float delta) {
         actualizar();
-        borrarPantalla(0,0,0.5f);
+
+        borrarPantalla(0, 0, 0.5f);
         batch.setProjectionMatrix(camara.combined);
 
-
         batch.begin();
-        batch.draw(texturaFondo,xFondo,0);
-        batch.draw(texturaFondo,xFondo + texturaFondo.getWidth(),0);
+        batch.draw(texturaFondo, xFondo, 0);
+        batch.draw(texturaFondo, xFondo + texturaFondo.getWidth(), 0);
         mario.render(batch);
         goomba.render(batch);
         dibujarEnemigos();
@@ -166,7 +217,7 @@ public class PantallaRunner extends Pantalla {
         dibujarTexto();
         batch.end();
 
-        //HUD *************************************************************************
+        // HUD ****************************
         batch.setProjectionMatrix(camaraHUD.combined);
         escenaHUD.draw();
     }
@@ -175,12 +226,12 @@ public class PantallaRunner extends Pantalla {
         texto.mostrarMensaje(batch, "Super Mario Tec", ANCHO/2, 0.9f*ALTO);
         //puntos += Gdx.graphics.getDeltaTime();
         int puntosInt = (int)puntos;
-        texto.mostrarMensaje(batch, "" + puntosInt+"",ANCHO/2*0.1f,0.9F*ALTO);
+        texto.mostrarMensaje(batch, "" + puntosInt, ANCHO/2*0.1f, 0.1f*ALTO);
     }
 
     private void dibujarBolasFuego() {
-        for (BolaFuego bola:
-             arrBolasFuego) {
+        for (BolaFuego bola :
+                arrBolasFuego) {
             bola.render(batch);
         }
     }
@@ -189,14 +240,15 @@ public class PantallaRunner extends Pantalla {
         for (Goomba goomba :
                 arrEnemigos) {
             goomba.render(batch);
-            //NOOOOOOOOOOOOOOOOOOOOOOO
+            // NOOOOOOOOOOOOOOOOOO
             goomba.moverIzquierda();
         }
     }
 
     private void actualizar() {
+
         /*xFondo-=5;
-        if (xFondo == -texturaFondo.getWidth()){
+        if (xFondo==-texturaFondo.getWidth()) {
             xFondo = 0;
         }*/
 
@@ -204,16 +256,16 @@ public class PantallaRunner extends Pantalla {
         actualizarCamara();
         actualizarEnemigos();
         actualizarBolasFuego();
-
-        //Colisiones
-        verificarColisiones(); //Choque entre bola de fuego - enemigo
+        // Colisiones
+        verificarColisiones();      // Bolas de fuego y enemigos
         verificarChoqueEnemigosPersonaje();
     }
 
     private void verificarChoqueEnemigosPersonaje() {
-        for (int i = arrEnemigos.size-1; i >= 0; i--) {
-            if (mario.sprite.getBoundingRectangle().overlaps(goomba.sprite.getBoundingRectangle())){
-                //Perdió o le quita vida
+        for (int i=arrEnemigos.size-1; i>=0; i--) {
+            Goomba goomba = arrEnemigos.get(i);
+            if (mario.sprite.getBoundingRectangle().overlaps(goomba.sprite.getBoundingRectangle())) {
+                // PERDIÓ !!!!!!!
                 mario.sprite.setY(ALTO);
                 arrEnemigos.removeIndex(i);
                 break;
@@ -222,15 +274,15 @@ public class PantallaRunner extends Pantalla {
     }
 
     private void verificarColisiones() {
-        for (int i = arrBolasFuego.size-1; i >= 0 ; i--) {
-            BolaFuego bola = arrBolasFuego.get(i);
-            for (int j = arrEnemigos.size-1; j >= 0 ; j--) {
-                Goomba goomba = arrEnemigos.get(j);
-                if (bola.sprite.getBoundingRectangle().overlaps(goomba.sprite.getBoundingRectangle())){
-                    //Si es cierto, hay colisión
+        for (int i=arrBolasFuego.size-1; i>=0; i--) {
+            BolaFuego bola = arrBolasFuego.get(i);      // UNA bola de fuego
+            for (int j=arrEnemigos.size-1; j>=0; j--) {
+                Goomba goomba = arrEnemigos.get(j);     // UN enemigo
+                if (bola.sprite.getBoundingRectangle().overlaps(goomba.sprite.getBoundingRectangle())) {
+                    // COLISION!!!
                     arrEnemigos.removeIndex(j);
                     arrBolasFuego.removeIndex(i);
-                    //Contar puntos
+                    // Contar puntos
                     puntos += 25;
                     guardarPreferencias();
                     break;
@@ -240,16 +292,16 @@ public class PantallaRunner extends Pantalla {
     }
 
     private void guardarPreferencias() {
-        Preferences prefs = Gdx.app.getPreferences("marcadores");
+        Preferences prefs = Gdx.app.getPreferences("marcador");
         prefs.putFloat("PUNTOS", puntos);
-        prefs.flush(); //Obligatorio cuando se guardan preferencias.
+        prefs.flush();  // OBLIGATORIO
     }
 
     private void actualizarBolasFuego() {
-        for (int i = arrBolasFuego.size-1; i >=0 ; i--) {
+        for (int i=arrBolasFuego.size-1; i>=0; i--) {
             BolaFuego bola = arrBolasFuego.get(i);
             bola.moverDerecha();
-            if (bola.sprite.getX()>ANCHO){
+            if (bola.sprite.getX()>ANCHO) {
                 arrBolasFuego.removeIndex(i);
             }
         }
@@ -257,18 +309,18 @@ public class PantallaRunner extends Pantalla {
 
     private void actualizarEnemigos() {
         timerCrearEnemigo += Gdx.graphics.getDeltaTime();
-        if (timerCrearEnemigo >= TIEMP_CREA_ENEMIGO){
+        if (timerCrearEnemigo>=TIEMPO_CREA_ENEMIGO) {
             timerCrearEnemigo = 0;
-            TIEMP_CREA_ENEMIGO = tiempoBase + MathUtils.random()*2; //Genrra tiempos entre 1 y 3
+            TIEMPO_CREA_ENEMIGO = tiempoBase + MathUtils.random()*2;
             if (tiempoBase>0) {
                 tiempoBase -= 0.01f;
             }
-            Goomba goomba = new Goomba(texturaGoomba,ANCHO,60 + MathUtils.random(0,2)*60); //Alturas de 60,120 y 180
+            Goomba goomba = new Goomba(texturaGoomba, mario.sprite.getX()+ANCHO/2, 60 + MathUtils.random(0,2)*100);  // 60, 120, 180
             arrEnemigos.add(goomba);
         }
         for (int i = arrEnemigos.size-1; i >= 0; i--) {
             Goomba goomba = arrEnemigos.get(i);
-            if (goomba.sprite.getX()<-goomba.sprite.getWidth()){
+            if (goomba.sprite.getX() < mario.sprite.getX() - ANCHO/2 - goomba.sprite.getWidth()) {
                 arrEnemigos.removeIndex(i);
             }
         }
@@ -281,7 +333,7 @@ public class PantallaRunner extends Pantalla {
     private void actualizarCamara() {
         float xCamara = camara.position.x;
         //xCamara++;
-        xCamara = mario.sprite.getX();
+        xCamara = mario.sprite.getX();  // Hacemos que la cámara siga al personaje
         camara.position.x = xCamara;
         camara.update();
     }
@@ -301,23 +353,26 @@ public class PantallaRunner extends Pantalla {
 
     }
 
-    private class ProcesadorEntrada implements InputProcessor {
+    private class ProcesadorEntrada implements InputProcessor
+    {
 
         @Override
         public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-            Vector3 v = new Vector3(screenX,screenY,0);
+            Vector3 v = new Vector3(screenX, screenY, 0);
             camara.unproject(v);
-            if (v.x < ANCHO/2 && mario.getEstado()==EstadoMario.CAMINANDO){
-                //Salta
+            if (v.x < ANCHO/2 && mario.getEstado()==EstadoMario.CAMINANDO) {
+                // SALTA!!!!!
                 mario.saltar();
-            } else if (v.x >= ANCHO/2){
-                //Disparar
+                Gdx.app.log("SALTO", "INICIO........");
+            } else if (v.x >= ANCHO/2) {
+                // Dispara
                 if (arrBolasFuego.size < 20) {
-                    BolaFuego bolaFuego = new BolaFuego(texturaBolaFuego, mario.sprite.getX(), mario.sprite.getY() + mario.sprite.getHeight()*0.5f);
+                    BolaFuego bolaFuego = new BolaFuego(texturaBolaFuego, mario.sprite.getX(),
+                            mario.sprite.getY() + mario.sprite.getHeight()*0.5F);
                     arrBolasFuego.add(bolaFuego);
                 }
             }
-            return false;
+            return true;
         }
 
         @Override
@@ -334,6 +389,7 @@ public class PantallaRunner extends Pantalla {
         public boolean keyTyped(char character) {
             return false;
         }
+
 
 
         @Override
@@ -357,3 +413,13 @@ public class PantallaRunner extends Pantalla {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
